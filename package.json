@@ -1,0 +1,19 @@
+{
+  "name": "edvexa-vendor-onboarding",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "concurrently --names frontend,backend --prefix-colors blue,green \"npm --prefix frontend run dev\" \"npm --prefix backend run dev\"",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+    "lint": "npm run lint:frontend && npm run lint:backend",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "lint:backend": "npm --prefix backend run lint",
+    "test": "npm --prefix backend run test:all",
+    "seed": "npm --prefix backend run seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

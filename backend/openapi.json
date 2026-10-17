@@ -1,0 +1,113 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Edvexa Vendor Onboarding API",
+    "version": "1.0.0",
+    "description": "Authenticated vendor onboarding, document verification, workflow, audit, and queue administration API. State-changing requests require the readable edvexa_csrf cookie value in X-CSRF-Token."
+  },
+  "servers": [{ "url": "http://localhost:4000/api/v1" }],
+  "tags": [
+    { "name": "Health" },
+    { "name": "Authentication" },
+    { "name": "Vendor" },
+    { "name": "Reviewer" },
+    { "name": "Admin" },
+    { "name": "Documentation" }
+  ],
+  "paths": {
+    "/": { "get": { "tags": ["Health"], "summary": "API information", "responses": { "200": { "$ref": "#/components/responses/Success" } } } },
+    "/health": { "get": { "tags": ["Health"], "summary": "Database-backed health check", "responses": { "200": { "$ref": "#/components/responses/Success" }, "503": { "$ref": "#/components/responses/Error" } } } },
+    "/docs/openapi.json": { "get": { "tags": ["Documentation"], "summary": "OpenAPI document", "responses": { "200": { "description": "OpenAPI JSON document" } } } },
+    "/auth/register": {
+      "post": {
+        "tags": ["Authentication"], "summary": "Register a vendor", "description": "Public registration always creates role vendor; submitted roles are ignored.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegistrationRequest" } } } },
+        "responses": { "201": { "$ref": "#/components/responses/UserSuccess" }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentication"], "summary": "Create a cookie session", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Credentials" } } } },
+        "responses": { "200": { "$ref": "#/components/responses/UserSuccess" }, "401": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/auth/refresh": { "post": { "tags": ["Authentication"], "summary": "Rotate refresh session", "responses": { "200": { "$ref": "#/components/responses/UserSuccess" }, "401": { "$ref": "#/components/responses/Error" } } } },
+    "/auth/logout": { "post": { "tags": ["Authentication"], "summary": "Revoke the refresh-token family", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "responses": { "204": { "description": "Session revoked" }, "403": { "$ref": "#/components/responses/Error" } } } },
+    "/auth/me": {
+      "get": { "tags": ["Authentication"], "summary": "Get current user", "security": [{ "cookieAuth": [] }], "responses": { "200": { "$ref": "#/components/responses/UserSuccess" }, "401": { "$ref": "#/components/responses/Error" } } },
+      "patch": { "tags": ["Authentication"], "summary": "Update current profile", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProfileRequest" } } } }, "responses": { "200": { "$ref": "#/components/responses/UserSuccess" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/vendor/profile": {
+      "get": { "tags": ["Vendor"], "summary": "Get or create own draft profile", "security": [{ "cookieAuth": [] }], "x-roles": ["vendor"], "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" }, "401": { "$ref": "#/components/responses/Error" }, "403": { "$ref": "#/components/responses/Error" } } },
+      "patch": { "tags": ["Vendor"], "summary": "Update own draft or rejected profile", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["vendor"], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProfileRequest" } } } }, "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/vendor/submit": { "post": { "tags": ["Vendor"], "summary": "Submit a complete draft or resubmit corrections", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["vendor"], "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } } },
+    "/vendor/applications/{profileId}": { "get": { "tags": ["Vendor"], "summary": "Get own application", "security": [{ "cookieAuth": [] }], "x-roles": ["vendor"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" }, "404": { "$ref": "#/components/responses/Error" } } } },
+    "/vendor/applications/{profileId}/audit": { "get": { "tags": ["Vendor"], "summary": "Audit access is denied to vendors", "security": [{ "cookieAuth": [] }], "x-roles": ["vendor"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "responses": { "403": { "$ref": "#/components/responses/Error" } } } },
+    "/vendor/documents": {
+      "get": { "tags": ["Vendor"], "summary": "List own active documents", "security": [{ "cookieAuth": [] }], "x-roles": ["vendor"], "responses": { "200": { "$ref": "#/components/responses/DocumentsSuccess" } } },
+      "post": { "tags": ["Vendor"], "summary": "Upload or replace a required document", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["vendor"], "requestBody": { "required": true, "content": { "multipart/form-data": { "schema": { "$ref": "#/components/schemas/DocumentUpload" } } } }, "responses": { "201": { "$ref": "#/components/responses/DocumentSuccess" }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/vendor/documents/{documentId}": {
+      "get": { "tags": ["Vendor"], "summary": "Read an authorized private document", "security": [{ "cookieAuth": [] }], "x-roles": ["vendor"], "parameters": [{ "$ref": "#/components/parameters/DocumentId" }], "responses": { "200": { "description": "Private file bytes" }, "404": { "$ref": "#/components/responses/Error" } } },
+      "delete": { "tags": ["Vendor"], "summary": "Delete an own active document", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["vendor"], "parameters": [{ "$ref": "#/components/parameters/DocumentId" }], "responses": { "204": { "description": "Deleted" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/reviews": { "get": { "tags": ["Reviewer"], "summary": "List assigned and unclaimed applications", "security": [{ "cookieAuth": [] }], "x-roles": ["reviewer"], "parameters": [{ "$ref": "#/components/parameters/Search" }, { "$ref": "#/components/parameters/Status" }, { "$ref": "#/components/parameters/Page" }, { "$ref": "#/components/parameters/Limit" }], "responses": { "200": { "$ref": "#/components/responses/ListSuccess" }, "403": { "$ref": "#/components/responses/Error" } } } },
+    "/reviews/{profileId}": { "get": { "tags": ["Reviewer"], "summary": "Get an assigned application", "security": [{ "cookieAuth": [] }], "x-roles": ["reviewer"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" }, "403": { "$ref": "#/components/responses/Error" } } } },
+    "/reviews/{profileId}/claim": { "post": { "tags": ["Reviewer"], "summary": "Atomically claim a submitted application", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["reviewer"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" }, "409": { "$ref": "#/components/responses/Error" } } } },
+    "/reviews/{profileId}/approve": { "post": { "tags": ["Reviewer"], "summary": "Approve an assigned application", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["reviewer"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "requestBody": { "$ref": "#/components/requestBodies/Decision" }, "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } } },
+    "/reviews/{profileId}/reject": { "post": { "tags": ["Reviewer"], "summary": "Reject an assigned application with corrections", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["reviewer"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "requestBody": { "$ref": "#/components/requestBodies/Decision" }, "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } } },
+    "/reviews/{profileId}/audit": { "get": { "tags": ["Reviewer"], "summary": "Get chronological audit history", "security": [{ "cookieAuth": [] }], "x-roles": ["reviewer"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "responses": { "200": { "$ref": "#/components/responses/AuditSuccess" }, "403": { "$ref": "#/components/responses/Error" } } } },
+    "/reviews/{profileId}/documents/{documentId}": { "get": { "tags": ["Reviewer"], "summary": "Read an authorized private document", "security": [{ "cookieAuth": [] }], "x-roles": ["reviewer"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }, { "$ref": "#/components/parameters/DocumentId" }], "responses": { "200": { "description": "Private file bytes" }, "403": { "$ref": "#/components/responses/Error" } } } },
+    "/admin/users": {
+      "get": { "tags": ["Admin"], "summary": "List users and roles", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "responses": { "200": { "$ref": "#/components/responses/Success" }, "403": { "$ref": "#/components/responses/Error" } } },
+      "post": { "tags": ["Admin"], "summary": "Provision a reviewer or admin", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["admin"], "requestBody": { "$ref": "#/components/requestBodies/ProvisionUser" }, "responses": { "201": { "$ref": "#/components/responses/UserSuccess" }, "403": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/admin/applications": { "get": { "tags": ["Admin"], "summary": "List all applications", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "parameters": [{ "$ref": "#/components/parameters/Search" }, { "$ref": "#/components/parameters/Status" }, { "$ref": "#/components/parameters/Page" }, { "$ref": "#/components/parameters/Limit" }], "responses": { "200": { "$ref": "#/components/responses/ListSuccess" }, "403": { "$ref": "#/components/responses/Error" } } } },
+    "/admin/applications/{profileId}": { "get": { "tags": ["Admin"], "summary": "Get any application", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "responses": { "200": { "$ref": "#/components/responses/ProfileSuccess" } } } },
+    "/admin/applications/{profileId}/audit": { "get": { "tags": ["Admin"], "summary": "Get application audit history", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }], "responses": { "200": { "$ref": "#/components/responses/AuditSuccess" } } } },
+    "/admin/applications/{profileId}/documents/{documentId}": { "get": { "tags": ["Admin"], "summary": "Read an authorized private document", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "parameters": [{ "$ref": "#/components/parameters/ProfileId" }, { "$ref": "#/components/parameters/DocumentId" }], "responses": { "200": { "description": "Private file bytes" } } } },
+    "/admin/dashboard/summary": { "get": { "tags": ["Admin"], "summary": "Get application metrics and trends", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "responses": { "200": { "$ref": "#/components/responses/Success" }, "403": { "$ref": "#/components/responses/Error" } } } },
+    "/admin/queue/health": { "get": { "tags": ["Admin"], "summary": "Get queue health", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "responses": { "200": { "$ref": "#/components/responses/Success" } } } },
+    "/admin/queue/events": { "get": { "tags": ["Admin"], "summary": "List outbox events without payloads", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "responses": { "200": { "$ref": "#/components/responses/Success" } } } },
+    "/admin/queue/notifications": { "get": { "tags": ["Admin"], "summary": "List notification delivery state", "security": [{ "cookieAuth": [] }], "x-roles": ["admin"], "responses": { "200": { "$ref": "#/components/responses/Success" } } } },
+    "/admin/queue/recover-failed": { "post": { "tags": ["Admin"], "summary": "Requeue failed outbox events", "security": [{ "cookieAuth": [] }, { "csrfCookie": [] }], "x-roles": ["admin"], "responses": { "200": { "$ref": "#/components/responses/Success" } } } }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": { "type": "apiKey", "in": "cookie", "name": "edvexa_access", "description": "Signed HttpOnly short-lived access JWT cookie." },
+      "csrfCookie": { "type": "apiKey", "in": "header", "name": "X-CSRF-Token", "description": "Must match the readable edvexa_csrf cookie for state-changing requests." }
+    },
+    "parameters": {
+      "ProfileId": { "name": "profileId", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+      "DocumentId": { "name": "documentId", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+      "Search": { "name": "search", "in": "query", "schema": { "type": "string", "maxLength": 100 } },
+      "Status": { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["draft", "submitted", "under_review", "approved", "rejected"] } },
+      "Page": { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+      "Limit": { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 10 } }
+    },
+    "requestBodies": {
+      "Decision": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["reason"], "additionalProperties": false, "properties": { "reason": { "type": "string", "minLength": 3, "maxLength": 2000 } } } } } },
+      "ProvisionUser": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["email", "name", "role", "temporaryPassword"], "additionalProperties": false, "properties": { "email": { "type": "string", "format": "email" }, "name": { "type": "string", "minLength": 2 }, "role": { "type": "string", "enum": ["reviewer", "admin"] }, "temporaryPassword": { "type": "string", "minLength": 12 } } } } } }
+    },
+    "schemas": {
+      "Credentials": { "type": "object", "required": ["email", "password"], "additionalProperties": false, "properties": { "email": { "type": "string", "format": "email", "maxLength": 254 }, "password": { "type": "string", "minLength": 12, "maxLength": 128 } } },
+      "RegistrationRequest": { "allOf": [{ "$ref": "#/components/schemas/Credentials" }, { "type": "object", "required": ["name"], "properties": { "name": { "type": "string", "minLength": 2, "maxLength": 120 } } }] },
+      "ProfileRequest": { "type": "object", "additionalProperties": false, "properties": { "name": { "type": "string" }, "businessName": { "type": "string" }, "registrationNumber": { "type": "string" }, "businessType": { "type": "string", "enum": ["sole_proprietorship", "partnership", "corporation", "nonprofit", "other"] }, "contact": { "type": "object" }, "address": { "type": "object" } } },
+      "DocumentUpload": { "type": "object", "required": ["requirement", "file"], "properties": { "requirement": { "type": "string", "enum": ["registration_certificate", "identity_document"] }, "file": { "type": "string", "format": "binary", "description": "PDF, JPEG, or PNG; maximum 10 MiB and signature must match MIME/extension." } } },
+      "User": { "type": "object", "required": ["id", "email", "name", "role"], "properties": { "id": { "type": "string" }, "email": { "type": "string" }, "name": { "type": "string" }, "role": { "type": "string", "enum": ["vendor", "reviewer", "admin"] } } },
+      "Profile": { "type": "object", "properties": { "_id": { "type": "string" }, "ownerUserId": { "type": "string" }, "status": { "type": "string", "enum": ["draft", "submitted", "under_review", "approved", "rejected"] }, "assignedReviewerId": { "type": "string", "nullable": true } } },
+      "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "issues": { "type": "array" } } } } }
+    },
+    "responses": {
+      "Success": { "description": "Successful response", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": {} } } } } },
+      "UserSuccess": { "description": "User response", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "object", "properties": { "user": { "$ref": "#/components/schemas/User" } } } } } } } },
+      "ProfileSuccess": { "description": "Application response", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "object", "properties": { "profile": { "$ref": "#/components/schemas/Profile" } } } } } } } },
+      "DocumentsSuccess": { "description": "Document list response", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "object", "properties": { "documents": { "type": "array" } } } } } } } },
+      "DocumentSuccess": { "description": "Document metadata response", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "object", "properties": { "document": { "type": "object" } } } } } } } },
+      "AuditSuccess": { "description": "Audit history response", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "object", "properties": { "audit": { "type": "array" } } } } } } } },
+      "ListSuccess": { "description": "Paginated application list", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "object", "properties": { "items": { "type": "array" }, "pagination": { "type": "object" } } } } } } } },
+      "Error": { "description": "Error response", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    }
+  }
+}
